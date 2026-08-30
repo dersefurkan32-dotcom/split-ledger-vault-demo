@@ -1,5 +1,7 @@
 # vault-attack-suite-demo
 
+[![test](https://github.com/dersefurkan32-dotcom/vault-attack-suite-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/dersefurkan32-dotcom/vault-attack-suite-demo/actions/workflows/ci.yml)
+
 **I don't sell audit PDFs. I ship Foundry repos that try to empty your vault before users do.**
 
 This repo is the public sample of what an engagement delivers: a runnable attack
