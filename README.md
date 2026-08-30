@@ -1,79 +1,81 @@
-# vault-attack-suite-demo
+# Split-ledger vault lab
 
-[![test](https://github.com/dersefurkan32-dotcom/vault-attack-suite-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/dersefurkan32-dotcom/vault-attack-suite-demo/actions/workflows/ci.yml)
+[![ci](https://github.com/dersefurkan32-dotcom/split-ledger-vault-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/dersefurkan32-dotcom/split-ledger-vault-demo/actions/workflows/ci.yml)
 
-**I don't sell audit PDFs. I ship Foundry repos that try to empty your vault before users do.**
+Local Foundry lab for one money-moving identity bug: **two ledgers credit the same deposit, and each withdrawal path burns only one.**
 
-This repo is the public sample of what an engagement delivers: a runnable attack
-suite for one bug class — *split-ledger identity* — where two ledgers credit the
-same deposit and each withdrawal path burns only one.
+This is a delivery sample, not a live exploit. The vulnerable vault is a teaching contract. The patched vault is proven with the same tests and with stateful invariants.
 
-## The bug class
+## Bug class
 
-`ReceiptSplitVault` tracks deposits twice:
+`ReceiptSplitVault` records a deposit twice:
 
-- Ledger A: `shares[user]`
-- Ledger B: `receipts[id] = {owner, amount, spent}`
+| Ledger | Storage | Withdrawal path |
+| --- | --- | --- |
+| A | `shares[user]` | `withdrawShares` burns only A |
+| B | `receipts[id] = {owner, amount, spent}` | `redeemReceipt` burns only B |
 
-`deposit()` credits **both**. `withdrawShares()` burns only A.
-`redeemReceipt()` burns only B. One deposit, two independent claims on the
-same assets.
+One deposit, two independent claims on the same asset pile. This is the same shape as production losses in receipt-id withdrawals, queue cursors, fast/slow paths, and trusted-forwarder flows where the protocol forgets which identity actually moves the money.
 
-This is the class behind real production losses: receipt/id-based withdrawal
-systems, queue cursors, fast/slow paths, and trusted-forwarder flows where the
-protocol forgets which identity actually moves the money.
+## Reproduce (local only)
 
-## The attack (30 seconds)
+Requires [Foundry](https://getfoundry.sh). No RPC, no keys, no live transactions.
 
 ```bash
-forge test --match-contract AttackSuite -vv
+forge test            # full suite
+forge test -vv        # with traces
+```
+
+Directed PoC — 100 deposited, 200 extracted:
+
+```bash
+forge test --match-contract SplitLedgerPoC -vv
 ```
 
 ```
 [PASS] test_double_pay_via_split_ledgers()
     attacker deposited 100, extracted 200
-    victim's 100 is gone; victim's share record still says 100 — backing is 0
+    victim share record still says 100 — backing is 0
 ```
 
 ## The fix, proven the same way
 
-`ReceiptBoundVault` binds both ledgers to one identity: redeem burns the
-receipt **and** the share credit.
+`ReceiptBoundVault` binds both ledgers to one identity: redeem burns the receipt **and** the share credit. `withdrawShares` is removed.
 
 ```bash
 forge test --match-contract BoundLedgerInvariant -vv
 ```
 
-Stateful fuzzing (`runs = 64, depth = 12`) drives random
-deposit/withdraw/redeem sequences at the bound vault. Two invariants must hold
-after every call:
+Stateful fuzzing (`runs = 64`, `depth = 12`) drives random deposit/redeem sequences. After every call:
 
 1. `withdrawn ≤ deposited` — no value created
-2. `vault balance == deposited − withdrawn` — ledger and balance never diverge
+2. `vault balance == deposited − withdrawn` — ledger and backing never diverge
 
-They hold. The same invariant dropped on the split vault fails immediately —
-that failure is the product.
+Both hold on the bound vault. The directed PoC shows the split vault violating the same conservation rule.
 
-## What a real engagement adds on top of this sample
+## Layout
 
-- **Fork tests** against your live deployment (or pinned commit) — real state,
-  real config, no mocks
-- Invariants on **your** money-moving identity: receipt id, epoch index,
-  match id, withdrawal cursor, forwarder sender
-- **Upgrade-diff pass** if you shipped in the last 30 days
-- Every finding delivered as a failing-then-fixed test. `forge test` is the report.
-
-## Run it
-
-```bash
-forge test            # full suite: 4/4
-forge test -vv        # with the drain trace
+```
+src/ReceiptSplitVault.sol   # MockAsset + split vault + bound vault
+test/SplitLedgerPoC.t.sol   # directed PoC and edge cases
+test/Invariant.t.sol        # handler + bound-vault invariants
 ```
 
-Requires [Foundry](https://getfoundry.sh). No RPC, no keys — fully local.
+## What a full engagement adds
+
+- Fork tests against a pinned commit or live deployment (authorized scope only)
+- Invariants on the actual money-moving identity: receipt id, epoch index, match id, withdrawal cursor, forwarder sender
+- Upgrade-diff pass if production shipped recently
+- Every finding delivered as a failing-then-fixed test. `forge test` is the report.
+
+## Scope and use
+
+Authorized research and teaching only. Do not point this suite at systems you do not own or are not contracted to test. See [SECURITY.md](SECURITY.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ---
 
-*Pre-ship attack tests for vaults and matching engines. 7 days, you keep the
-tests. Contact: Telegram [@FURY_Fn](https://t.me/FURY_Fn) ·
-dersefurkan32@gmail.com*
+Vault and matching-engine pre-ship tests. Contact: Telegram [@FURY_Fn](https://t.me/FURY_Fn) · dersefurkan32@gmail.com

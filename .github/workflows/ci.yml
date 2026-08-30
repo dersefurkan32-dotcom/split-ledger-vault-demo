@@ -1,13 +1,27 @@
-name: test
+name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  forge-test:
+  test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
-      - run: forge test -vv
+        with:
+          version: stable
+      - name: Forge version
+        run: forge --version
+      - name: Format
+        run: forge fmt --check
+      - name: Build
+        run: forge build --skip test
+      - name: Test
+        run: forge test -vv

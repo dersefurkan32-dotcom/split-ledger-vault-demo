@@ -41,13 +41,13 @@ contract MockAsset {
     }
 }
 
-/// @notice Intentionally vulnerable vault: two ledgers, one pile of assets.
+/// @notice Intentionally incorrect vault: two ledgers, one pile of assets.
 ///
 /// Ledger A: `shares[user]`
-/// Ledger B: `receipts[id] = {owner, amount}`
+/// Ledger B: `receipts[id] = {owner, amount, spent}`
 ///
 /// `deposit` credits BOTH. Each withdraw path only burns ONE.
-/// That is the class this sample sells: the vault tracks the wrong identity.
+/// Teaching contract — not for production.
 contract ReceiptSplitVault {
     struct Receipt {
         address owner;
@@ -93,8 +93,8 @@ contract ReceiptSplitVault {
     }
 }
 
-/// Same API, one identity. Deposit creates a receipt; redeem burns it
-/// and the share credit together. withdrawShares is removed.
+/// Same deposit API, one identity. Redeem burns the receipt and the share
+/// credit together. `withdrawShares` is removed so there is only one exit.
 contract ReceiptBoundVault {
     struct Receipt {
         address owner;

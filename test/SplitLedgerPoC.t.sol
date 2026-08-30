@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ReceiptSplitVault, ReceiptBoundVault, MockAsset} from "../src/ReceiptSplitVault.sol";
 
-/// Directed PoC: 100 in, 200 out. This is the sample a founder runs in 30 seconds.
-contract AttackSuite is Test {
+/// Directed PoC: 100 in, 200 out. Local Foundry only.
+contract SplitLedgerPoC is Test {
     MockAsset internal asset;
     ReceiptSplitVault internal vault;
     address internal attacker = address(0xA11CE);
@@ -27,7 +27,7 @@ contract AttackSuite is Test {
     }
 
     function test_double_pay_via_split_ledgers() public {
-        // Attacker burns ledger A then ledger B. Victim's 100 is the second payment.
+        // Burns ledger A then ledger B. Victim's 100 is the second payment.
         vm.startPrank(attacker);
         vault.withdrawShares(100 ether);
         vault.redeemReceipt(1);
@@ -50,5 +50,29 @@ contract AttackSuite is Test {
         vm.stopPrank();
         assertEq(asset.balanceOf(address(bound)), 0);
         assertEq(bound.shares(attacker), 0);
+    }
+
+    function test_zero_deposit_reverts() public {
+        vm.prank(attacker);
+        vm.expectRevert(bytes("ZERO"));
+        vault.deposit(0);
+    }
+
+    function test_withdraw_more_than_shares_reverts() public {
+        vm.prank(attacker);
+        vm.expectRevert(bytes("SHARES"));
+        vault.withdrawShares(100 ether + 1);
+    }
+
+    function test_redeem_wrong_owner_reverts() public {
+        vm.prank(attacker);
+        vm.expectRevert(bytes("OWNER"));
+        vault.redeemReceipt(0); // receipt 0 belongs to victim
+    }
+
+    function test_redeem_unknown_id_reverts() public {
+        vm.prank(attacker);
+        vm.expectRevert(bytes("ID"));
+        vault.redeemReceipt(99);
     }
 }

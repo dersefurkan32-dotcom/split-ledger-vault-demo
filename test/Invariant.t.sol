@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ReceiptSplitVault, ReceiptBoundVault, MockAsset} from "../src/ReceiptSplitVault.sol";
 
-/// Handler that a founder can drop onto their own vault with almost no rewrite:
-/// track deposits vs withdrawals. If withdrawals ever exceed deposits, the
-/// vault is tracking the wrong identity.
+/// Drop-in conservation handler: track deposits vs withdrawals.
+/// If withdrawals ever exceed deposits, the vault is tracking the wrong identity.
+/// Kept as a template for client vaults. Default CI fuzzes the bound vault only.
 contract SplitHandler {
     ReceiptSplitVault public vault;
     MockAsset public asset;
@@ -85,7 +85,7 @@ contract BoundHandler {
     }
 }
 
-/// Same invariant, bound vault. This MUST hold.
+/// Conservation invariants on the bound vault. These MUST hold.
 contract BoundLedgerInvariant is Test {
     BoundHandler internal handler;
 
