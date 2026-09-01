@@ -1,6 +1,6 @@
 # Split-ledger vault lab
 
-[![ci](https://github.com/dersefurkan32-dotcom/split-ledger-vault-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/dersefurkan32-dotcom/split-ledger-vault-demo/actions/workflows/ci.yml)
+[![ci](https://github.com/dersefurkan/split-ledger-vault-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/dersefurkan/split-ledger-vault-demo/actions/workflows/ci.yml)
 
 Local Foundry lab for one money-moving identity bug: **two ledgers credit the same deposit, and each withdrawal path burns only one.**
 
