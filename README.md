@@ -2,9 +2,12 @@
 
 [![ci](https://github.com/dersefurkan/split-ledger-vault-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/dersefurkan/split-ledger-vault-demo/actions/workflows/ci.yml)
 
-Local Foundry lab for one money-moving identity bug: **two ledgers credit the same deposit, and each withdrawal path burns only one.**
+Local Foundry lab for money-moving identity bugs, in two shapes:
 
-This is a delivery sample, not a live exploit. The vulnerable vault is a teaching contract. The patched vault is proven with the same tests and with stateful invariants.
+1. **Split ledgers** — two ledgers credit the same deposit, and each withdrawal path burns only one.
+2. **Missing cursor** — a withdrawal queue tracks what a request is worth, but not what it already paid.
+
+This is a delivery sample, not a live exploit. The vulnerable vaults are teaching contracts. The patched vaults are proven with the same tests and with stateful invariants.
 
 ## Bug class
 
@@ -53,13 +56,58 @@ Stateful fuzzing (`runs = 64`, `depth = 12`) drives random deposit/redeem sequen
 
 Both hold on the bound vault. The directed PoC shows the split vault violating the same conservation rule.
 
+## Shape 2 — the missing claimed cursor
+
+`EpochQueueVaultVulnerable` is a maturity-gated withdrawal queue: `request` locks funds, `advanceEpoch` matures them, `claim(id, amount)` pays. The bug is what is *not* there — no per-request `claimed` cursor:
+
+```
+claim(id, amount):  require(amount <= r.amount)   // pays up to the FULL amount, every call
+```
+
+One matured request is claimable at full value until the vault is empty; the last claimants meet a zero balance.
+
+```bash
+forge test --match-contract EpochQueuePoC -vv
+```
+
+```
+[PASS] test_full_reclaim_drains_vulnerable_queue()
+  alice requested: 100.000000000000000000
+  alice claimed  : 200.000000000000000000
+  vault balance  : 0.000000000000000000   (bob's matured claim now reverts)
+```
+
+`EpochQueueVaultBound` writes the cursor: `claimed += amount`, claims capped at the remainder. Same PoC holds: alice's second claim reverts, bob is paid in full.
+
+## Watching the cursor suite fail (opt-in)
+
+The epoch handler runs both vaults under the same invariants (64 runs × 12 calls). Gated so default CI stays green:
+
+```bash
+DEMO_RUN_KILLED=1 forge test --match-contract VulnerableEpochQueueInvariant -vv
+```
+
+| Invariant | Cursor-bound queue | Cursor-less queue |
+| --- | --- | --- |
+| `withdrawals_cannot_exceed_deposits` | HOLDS | holds* |
+| `vault_balance_matches_ledger` | HOLDS | holds* |
+| `no_request_overpays` | HOLDS | **FAILS** |
+
+\*Token-level conservation **cannot** catch this bug with one solvent vault: the balance floors at zero and the final over-claim simply reverts. The leak lives one level down, in per-request accounting — which is why the suite tracks it with per-request ghost variables. Reviews that only check "withdrawn ≤ deposited" sign off on this bug.
+
 ## Layout
 
 ```
 src/ReceiptSplitVault.sol   # MockAsset + split vault + bound vault
+src/EpochQueueVault.sol     # cursor-less queue + cursor-bound queue + shared interface
 test/SplitLedgerPoC.t.sol   # directed PoC and edge cases
+test/EpochQueuePoC.t.sol    # directed cursor-drain PoC (both variants)
+test/EpochQueueUnit.t.sol   # maturity / ownership / partial-claim / keeper checks + fuzz
 test/Invariant.t.sol        # handler + bound-vault invariants
+test/EpochQueueInvariant.t.sol  # queue handler + invariants (killed variant gated)
 ```
+
+`forge test` — 20 passed, 1 gated suite skipped.
 
 ## What a full engagement adds
 
